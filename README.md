@@ -1,4 +1,4 @@
-# KPMB-LAB/murb_energy_tool
+#murb_energy_tool
 A lightweight energy model based on PHPP and RETScreen. Uses hourly TMY (EPW) files, but data is aggregated into a
 monthly timestep. Mainly being used during early stage design to understand the minimum thermal envelope performance
 required given TEDI, TEUI and GHGI targets.
