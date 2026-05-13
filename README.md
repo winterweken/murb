@@ -32,4 +32,3 @@ See [Jupyter Notebook examples](examples)
 - [ ] Report financial metrics
 - [ ] Documentation
 
-Questions? Contact [Jonathan Graham](mailto:jgraham@kpmbarchitects.com)
