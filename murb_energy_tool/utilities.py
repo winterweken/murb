@@ -30,7 +30,7 @@ def process_weather_data(silent, isd_file=None):
         tmp['air temperature'] = tmp['air temperature'].astype('float') / 10
         tmp.loc[(tmp['air temperature quality code'].astype(float) != 1) &
                 (tmp['air temperature quality code'].astype(float) != 5)] = 8  # if values are missing, fill in with 8 C
-        isd = tmp.resample('H').mean()
+        isd = tmp.resample('h').mean()
         isd = isd.rename(columns={'air temperature': 'temp_air'})
         return epw, metadata, isd
     else:
@@ -54,7 +54,7 @@ def get_degree_hours_from_weather_data(weather_file, setpoint_htg, setpoint_clg)
     weather_file['clg_degree_hrs_ground'] = (weather_file.temp_air_mean - setpoint_clg).apply(lambda x: 0 if x < 0 else x) / 1000
     weather_file['htg_degree_hrs_w_clg_setpoint_ground'] = (setpoint_clg - weather_file.temp_air_mean).apply(
         lambda x: 0 if x < 0 else x) / 1000
-    weather_file_monthly = weather_file.resample('M').sum()
+    weather_file_monthly = weather_file.resample('ME').sum()
     # drop columns that no longer have meaning
     weather_file_monthly = weather_file_monthly.filter(['hours', 'htg_hours', 'clg_hours', 'htg_degree_hrs',
                                                         'clg_degree_hrs', 'htg_degree_hrs_ground',

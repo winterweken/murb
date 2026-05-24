@@ -19,7 +19,7 @@ def get_solar_gains(window_groups, area_windows, epw):
                     1 - window_group.shading) * 0.93 / 1000
         # 0.93 is an attenuation factor for non-normal incidence (source: RETScreen Passive Solar).
 
-        epw_copy = epw_copy.resample('M').sum()
+        epw_copy = epw_copy.resample('ME').sum()
 
         q_solar = epw_copy['q_solar'].values
 
