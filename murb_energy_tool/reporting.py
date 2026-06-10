@@ -70,7 +70,7 @@ The html file will be created in './results'.
     # Create monthly thermal demand table
     d = {'Heating (kWh)': run.heating_demand.astype('int'),
          'Cooling (kWh)': run.cooling_demand.astype('int')}
-    df_monthly_thermal_demand = pd.DataFrame(index=pd.date_range('2021-01-01', periods=12, freq='M').month_name(),
+    df_monthly_thermal_demand = pd.DataFrame(index=pd.date_range('2021-01-01', periods=12, freq='ME').month_name(),
                                              data=d)
 
     # Create annual end use breakdown
@@ -87,13 +87,13 @@ The html file will be created in './results'.
          'Space Cooling (kWh)': run.cooling_consumption.astype('int'),
          'Service Water Heating (kWh)': run.dhw_htg_consumption.astype('int'),
          'Plug Loads (kWh)': run.plug_loads_consumption.astype('int')}
-    df_monthly_end_use = pd.DataFrame(index=pd.date_range('2021-01-01', periods=12, freq='M').month_name(), data=d)
+    df_monthly_end_use = pd.DataFrame(index=pd.date_range('2021-01-01', periods=12, freq='ME').month_name(), data=d)
 
     # Create monthly electricity / gas table
     d = {'Electricity (kWh)': run.electricity_consumption.astype('int'),
          'Gas (kWh)': run.gas_consumption.astype('int'),
          'Gas (m3)': (run.gas_consumption/static.constants['ed_gas']).astype('int')}
-    df_monthly_gas_electricity = pd.DataFrame(index=pd.date_range('2021-01-01', periods=12, freq='M').month_name(),
+    df_monthly_gas_electricity = pd.DataFrame(index=pd.date_range('2021-01-01', periods=12, freq='ME').month_name(),
                                               data=d)
 
     # Make output folders
