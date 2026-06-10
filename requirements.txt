@@ -1,3 +1,8 @@
+# Webapp + dev dependencies. The murb_energy_tool library itself is stdlib-only
+# (tabulate needed only for murb_energy_tool.reporting console summaries).
 streamlit
 tabulate
 pytest
+# webapp/app.py only:
+pandas
+pvlib
