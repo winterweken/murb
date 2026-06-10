@@ -22,30 +22,41 @@ Available Here: https://9s4appx5hvvwlnevx3mtxkj.streamlit.app
 
 ## Installation
 
-### Anaconda (Recommended)
+### Library (programmatic use) — stdlib only, Python 3.8+
 
-#### Building the environment
-1. Open Anaconda Powershell Prompt and [create a fresh environment](https://docs.conda.io/projects/conda/en/latest/user-guide/tasks/manage-environments.html#creating-an-environment-with-commands) with Python version 3.10
-2. Activate the fresh environment and install pip (if Anaconda didn't do this automatically)
-3. Download or clone this repository and `cd` to the root folder of the repository
-4. Install the required packages with:
-   ```bash
-   python -m pip install -r requirements.txt
-   ```
-> Note: The environment you just created has the packages necessary to run `murb_energy_tool` and the web app. You may want to install some additional ones, such as Jupyter Notebook, if you intend to run the example scripts.
+`murb_energy_tool` is now a **pure-Python library** with no native dependencies (no numpy, scipy, pandas, or pvlib required). It works in any standard CPython 3.8+ environment, including constrained hosts such as pyRevit's embedded interpreter.
 
-#### Installing the python module
-If you wish to use the `murb_energy_tool` module globally in your environment:
-5. Find the location of the environment you just created. Possibly something like `C:\Users\Your Name\AppData\Local\Continuum\anaconda3\envs\[new env]` *(Hint: With the env activated in Anaconda Prompt run `conda info` and look for "active env location")*
-6. From the downloaded repository, copy the entire folder "murb_energy_tool" into the environment.
+```bash
+# Clone and add to sys.path — no pip install step needed for library-only use
+git clone https://github.com/winterweken/murb
+python -c "from murb_energy_tool import test"  # should print "All tests passed"
+```
+
+### Web application — additional packages required
+
+The Streamlit web app uses `pandas`, `pvlib`, `streamlit`, and `tabulate`. Install them with:
+
+```bash
+pip install -r requirements.txt
+streamlit run webapp/app.py
+```
+
+> **Anaconda users:** a conda environment is no longer required for the library. Create a plain `venv` or use any Python 3.8+ interpreter.
 
 #### Test the installation
-7. Open a Python terminal and try importing the package: 
-   ```python
-   from murb_energy_tool import test
-   ```
-   If you see "All tests passed", the package has been installed correctly.
-> Note: You will need to activate the environment you created each time you want to use the `murb_energy_tool` or run the web app.
+```python
+from murb_energy_tool import test
+```
+If you see "All tests passed", the library is correctly installed.
+
+---
+
+### Changes in the pure-Python port
+
+- **ISD weather-file support removed.** Passing `isd_file=` to `Run()` now raises `NotImplementedError`. Use a TMY EPW file instead (`epw_path=` or place it in `./input/`).
+- **Library is now embeddable** in constrained Python hosts (e.g. pyRevit's embedded CPython) with zero per-machine environment setup.
+- Internally, numpy arrays are replaced by a lightweight `Vec` list subclass; pvlib solar position is replaced by a NOAA NREL SPA implementation; scipy interpolation is replaced by stdlib linear/quadratic interpolation; pandas EPW parsing is replaced by a pure-Python EPW reader.
+- Console summaries use `tabulate` instead of `pandas.DataFrame.to_markdown` (cosmetic only).
 
 ## Programmatic Usage
 

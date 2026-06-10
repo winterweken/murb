@@ -1,7 +1,3 @@
-numpy
-scipy
-pandas
-pvlib
-tabulate
 streamlit
+tabulate
 pytest

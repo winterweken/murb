@@ -27,7 +27,7 @@ def run_simulation(epw_bytes: bytes, epw_filename: str, run_kwargs: dict, window
             try:
                 os.chdir(td_path)
                 wg_objects = [simulation.WindowGroup(**row) for row in window_groups]
-                run = simulation.Run(window_groups=wg_objects, silent=True, **run_kwargs)
+                run = simulation.Run(window_groups=wg_objects, **run_kwargs)
                 reporting.write_results(run)
 
                 results_dir = td_path / "results" / run.name
