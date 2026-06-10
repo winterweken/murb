@@ -47,6 +47,8 @@ def utilisation_factors(solar_gains, heat_losses, internal_gains, mass_level):
         c = coeff['c'][2]
         d = coeff['d'][2]
 
+    # NOTE: pure-Python raises ZeroDivisionError where numpy returned inf; in
+    # practice the denominator is -internal_gains (< 0) when heat_losses is 0.
     glr = solar_gains / (heat_losses - internal_gains)
     f_i = (a + (b * glr)) / (1 + (c * glr) + (d * glr ** 2))
     return f_i

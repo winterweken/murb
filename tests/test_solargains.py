@@ -19,7 +19,7 @@ class WG:
         self.shading = shading
 
 
-def test_solar_gains_south_within_1pct_of_golden():
+def test_solar_gains_south_sanity():
     # baseline_gas golden used one south group, area 1800, shgc .4, shading 0.
     # Reconstruct its solar gains from frozen run outputs:
     # solar_gains_during_htg/f gives the pre-utilisation total only when f==1,
