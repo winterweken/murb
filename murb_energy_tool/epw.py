@@ -37,7 +37,7 @@ class EpwData:
 
 def read_epw(path, coerce_year=2021):
     data = EpwData()
-    with open(str(path), 'r', errors='replace') as f:
+    with open(str(path), 'r', encoding='utf-8-sig', errors='replace') as f:
         lines = f.read().splitlines()
 
     loc = lines[0].split(',')

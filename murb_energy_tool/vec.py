@@ -33,6 +33,10 @@ class Vec(list):
 
     __rmul__ = __mul__
 
+    # In-place ops must stay elementwise — list.__iadd__ would concatenate.
+    __iadd__ = __add__
+    __imul__ = __mul__
+
     def __truediv__(self, other):
         return self._zip(other, lambda a, b: a / b)
 
