@@ -2,7 +2,9 @@
 
 A lightweight energy model based on PHPP and RETScreen. Uses hourly TMY (EPW) files, but data is aggregated into a monthly timestep. Mainly being used during early stage design to understand the minimum thermal envelope performance required given TEDI, TEUI and GHGI targets.
 
-This project includes both a **Python library** for programmatic use and an interactive **Streamlit Web Application** for energy modelling.
+This project includes both a **Python library** for programmatic use and an interactive **Streamlit Web Application** for energy modelling. EPW files can be found from local resources or our good friends from Honeybee/Ladybug.
+
+Found Here: https://www.ladybug.tools/epwmap/
 
 ## Web Application
 
