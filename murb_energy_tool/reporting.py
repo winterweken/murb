@@ -1,169 +1,169 @@
-"""
-The ``reporting`` module contains functions for 1) writing a simulation run to an html file, and 2) validating a model
-run against a utility bill.
-"""
-
+"""Writes an html results file for a Run, and validates a run against
+utility bills. Pure-Python replacement for the pandas/scipy version; the
+generated HTML tables match pandas' to_html structure closely enough for
+the bundled report skeleton."""
+import calendar
+import csv
 from pathlib import Path
-from scipy import stats
-import numpy as np
-import pandas as pd
+
 from tabulate import tabulate
 from murb_energy_tool import static, report_resources
 import importlib.resources as pkg_resources
 
+MONTHS = list(calendar.month_name)[1:]  # January..December
+
+
+def _html_table(headers, rows, index=None, index_name=''):
+    """Minimal pandas-to_html-alike: <table> with a header row and optional
+    row labels rendered as <th>."""
+    out = ['<table border="1" class="dataframe">', '<thead><tr style="text-align: center;">']
+    out.append('<th>%s</th>' % index_name if index is not None else '')
+    out.extend('<th>%s</th>' % h for h in headers)
+    out.append('</tr></thead><tbody>')
+    for i, row in enumerate(rows):
+        out.append('<tr>')
+        if index is not None:
+            out.append('<th>%s</th>' % index[i])
+        out.extend('<td>%s</td>' % ('' if c is None else c) for c in row)
+        out.append('</tr>')
+    out.append('</tbody></table>')
+    return ''.join(out)
+
+
+def _annual(series, gfa, ndigits=1):
+    return round(sum(series) / gfa, ndigits)
+
 
 def write_results(run):
-    """
-Writes an html file containing results and metadata for a single Run object.
-The html file will be created in './results'.
-    Parameters
-    ----------
-    run : object
-        A Run object produced by murb_energy_tool.simulation
-    """
-    # Create inputs table
-    d = {
-        'Floor Area': [run.gfa, 'm2'],
-        'Walls Area': [run.area_walls, 'm2'],
-        'Roof Area': [run.area_roof, 'm2'],
-        'Weather File': [run.weather_file, ''],
-        'Operating Hours': [run.operating_hours, ''],
-        'Occupancy': [run.occupancy, 'm2/person'],
-        'Plug Loads': [run.plug_loads, 'W/m2'],
-        'People Outdoor Air': [run.ppl_oa, 'L/s/person'],
-        'Area Outdoor Air': [run.area_oa, 'L/s/m2'],
-        'Infiltration': [run.infiltration, 'L/s/m2 exterior area @ 75 Pa'],
-        'Wall R-value': [round(run.wall_r, 1), 'hr ft2 F/Btu'],
-        'Roof R-value': [round(run.roof_r, 1), 'hr ft2 F/Btu'],
-        'Window U-value': [run.window_u, 'W/m2K'],
-        'Window SHGC': [run.shgc, ''],
-        'Shading': [run.shading, '%'],
-        'Lighting': [run.lighting, 'W/m2'],
-        'Heat Recovery': [run.heat_recovery, '%'],
-        'Cooling': [run.cooling_cop, 'COP'],
-        'Heating': [run.heating_cop, 'COP'],
-        'DHW Load': [run.dhw_load, 'W/person'],
-        'DHW Plant': [run.dhw_plant, 'COP'],
-        'GHG Intensity - Electricity': [run.ghg_intensity_electricity, 'kgCO2e/kWh'],
-        'GHG Intensity - Natural Gas': [round(run.ghg_intensity_natural_gas, 2), 'kgCO2e/kWh']
-    }
-    df_inputs = pd.DataFrame(data=d, index=['Value', 'Unit']).transpose()
+    """Writes './results/{run.name}/{run.name}.html' + javascript data files.
+    Same artifact layout as the pandas version (webapp depends on it)."""
+    inputs_rows = [
+        ('Floor Area', run.gfa, 'm2'),
+        ('Walls Area', run.area_walls, 'm2'),
+        ('Roof Area', run.area_roof, 'm2'),
+        ('Weather File', run.weather_file, ''),
+        ('Operating Hours', run.operating_hours, ''),
+        ('Occupancy', run.occupancy, 'm2/person'),
+        ('Plug Loads', run.plug_loads, 'W/m2'),
+        ('People Outdoor Air', run.ppl_oa, 'L/s/person'),
+        ('Area Outdoor Air', run.area_oa, 'L/s/m2'),
+        ('Infiltration', run.infiltration, 'L/s/m2 exterior area @ 75 Pa'),
+        ('Wall R-value', round(run.wall_r, 1), 'hr ft2 F/Btu'),
+        ('Roof R-value', round(run.roof_r, 1), 'hr ft2 F/Btu'),
+        ('Window U-value', run.window_u, 'W/m2K'),
+        ('Window SHGC', run.shgc, ''),
+        ('Shading', run.shading, '%'),
+        ('Lighting', run.lighting, 'W/m2'),
+        ('Heat Recovery', run.heat_recovery, '%'),
+        ('Cooling', run.cooling_cop, 'COP'),
+        ('Heating', run.heating_cop, 'COP'),
+        ('DHW Load', run.dhw_load, 'W/person'),
+        ('DHW Plant', run.dhw_plant, 'COP'),
+        ('GHG Intensity - Electricity', run.ghg_intensity_electricity, 'kgCO2e/kWh'),
+        ('GHG Intensity - Natural Gas', round(run.ghg_intensity_natural_gas, 2), 'kgCO2e/kWh'),
+    ]
+    tables = {}
+    tables['inputs'] = _html_table(
+        ['Value', 'Unit'], [[v, u] for _, v, u in inputs_rows],
+        index=[n for n, _, _ in inputs_rows])
 
-    # Create annual intensities table
-    d = {'TEDI heating (kWh/m2)': round(np.sum(run.heating_demand) / run.gfa, 1),
-         'TEDI cooling (kWh/m2)': round(np.sum(run.cooling_demand) / run.gfa, 1),
-         'TEUI (kWh/m2)': round(np.sum(run.total_energy_consumption) / run.gfa, 1),
-         'GHGI (kgCO2e/m2)': round(np.sum(run.total_ghg_emissions) / run.gfa, 1)}
-    df_annual_intensities = pd.DataFrame(index=['Annual'], data=d)
+    annual_headers = ['TEDI heating (kWh/m2)', 'TEDI cooling (kWh/m2)',
+                      'TEUI (kWh/m2)', 'GHGI (kgCO2e/m2)']
+    annual_values = [_annual(run.heating_demand, run.gfa),
+                     _annual(run.cooling_demand, run.gfa),
+                     _annual(run.total_energy_consumption, run.gfa),
+                     _annual(run.total_ghg_emissions, run.gfa)]
+    tables['annual_intensities'] = _html_table(annual_headers, [annual_values],
+                                               index=['Annual'])
 
-    # Create annual thermal demand breakdowns
-    d = {'Transmission': [round(np.sum(run.transmission_heat_losses) / run.gfa, 1),
-                          round(np.sum(run.transmission_heat_gains) / run.gfa, 1)],
-         'Ventilation': [round(np.sum(run.ventilation_heat_losses) / run.gfa, 1),
-                         round(np.sum(run.ventilation_heat_gains) / run.gfa, 1)],
-         'Infiltration': [round(np.sum(run.infiltration_heat_losses) / run.gfa, 1),
-                          round(np.sum(run.infiltration_heat_gains) / run.gfa, 1)],
-         'Internal Gains': [np.nan, round(np.sum(run.internal_gains_during_clg) / run.gfa, 1)],
-         'Solar Gains': [np.nan, round(np.sum(run.solar_gains_during_clg) / run.gfa, 2)]}
-    df_annual_thermal_breakdown = pd.DataFrame(index=['Heating (kWh/m2)', 'Cooling (kWh/m2)'], data=d)
+    tables['annual_thermal_breakdown'] = _html_table(
+        ['Transmission', 'Ventilation', 'Infiltration', 'Internal Gains', 'Solar Gains'],
+        [[_annual(run.transmission_heat_losses, run.gfa),
+          _annual(run.ventilation_heat_losses, run.gfa),
+          _annual(run.infiltration_heat_losses, run.gfa), None, None],
+         [_annual(run.transmission_heat_gains, run.gfa),
+          _annual(run.ventilation_heat_gains, run.gfa),
+          _annual(run.infiltration_heat_gains, run.gfa),
+          _annual(run.internal_gains_during_clg, run.gfa),
+          _annual(run.solar_gains_during_clg, run.gfa, 2)]],
+        index=['Heating (kWh/m2)', 'Cooling (kWh/m2)'])
 
-    # Create monthly thermal demand table
-    d = {'Heating (kWh)': run.heating_demand.astype('int'),
-         'Cooling (kWh)': run.cooling_demand.astype('int')}
-    df_monthly_thermal_demand = pd.DataFrame(index=pd.date_range('2021-01-01', periods=12, freq='ME').month_name(),
-                                             data=d)
+    tables['monthly_thermal_demand'] = _html_table(
+        ['Heating (kWh)', 'Cooling (kWh)'],
+        [[int(run.heating_demand[m]), int(run.cooling_demand[m])] for m in range(12)],
+        index=MONTHS)
 
-    # Create annual end use breakdown
-    d = {'Lighting': round(np.sum(run.lighting_consumption) / run.gfa, 1),
-         'Space Heating': round(np.sum(run.heating_consumption) / run.gfa, 1),
-         'Space Cooling': round(np.sum(run.cooling_consumption) / run.gfa, 1),
-         'Service Water Heating': round(np.sum(run.dhw_htg_consumption) / run.gfa, 1),
-         'Plug Loads': round(np.sum(run.plug_loads_consumption) / run.gfa, 1)}
-    df_annual_end_use_breakdown = pd.DataFrame(index=['Annual (kWh/m2)'], data=d)
+    tables['annual_end_use_breakdown'] = _html_table(
+        ['Lighting', 'Space Heating', 'Space Cooling', 'Service Water Heating', 'Plug Loads'],
+        [[_annual(run.lighting_consumption, run.gfa),
+          _annual(run.heating_consumption, run.gfa),
+          _annual(run.cooling_consumption, run.gfa),
+          _annual(run.dhw_htg_consumption, run.gfa),
+          _annual(run.plug_loads_consumption, run.gfa)]],
+        index=['Annual (kWh/m2)'])
 
-    # Create monthly end use table
-    d = {'Lighting (kWh)': run.lighting_consumption.astype('int'),
-         'Space Heating (kWh)': run.heating_consumption.astype('int'),
-         'Space Cooling (kWh)': run.cooling_consumption.astype('int'),
-         'Service Water Heating (kWh)': run.dhw_htg_consumption.astype('int'),
-         'Plug Loads (kWh)': run.plug_loads_consumption.astype('int')}
-    df_monthly_end_use = pd.DataFrame(index=pd.date_range('2021-01-01', periods=12, freq='ME').month_name(), data=d)
+    tables['monthly_end_use'] = _html_table(
+        ['Lighting (kWh)', 'Space Heating (kWh)', 'Space Cooling (kWh)',
+         'Service Water Heating (kWh)', 'Plug Loads (kWh)'],
+        [[int(run.lighting_consumption[m]), int(run.heating_consumption[m]),
+          int(run.cooling_consumption[m]), int(run.dhw_htg_consumption[m]),
+          int(run.plug_loads_consumption[m])] for m in range(12)],
+        index=MONTHS)
 
-    # Create monthly electricity / gas table
-    d = {'Electricity (kWh)': run.electricity_consumption.astype('int'),
-         'Gas (kWh)': run.gas_consumption.astype('int'),
-         'Gas (m3)': (run.gas_consumption/static.constants['ed_gas']).astype('int')}
-    df_monthly_gas_electricity = pd.DataFrame(index=pd.date_range('2021-01-01', periods=12, freq='ME').month_name(),
-                                              data=d)
+    ed_gas = static.constants['ed_gas']
+    tables['monthly_gas_electricity'] = _html_table(
+        ['Electricity (kWh)', 'Gas (kWh)', 'Gas (m3)'],
+        [[int(run.electricity_consumption[m]), int(run.gas_consumption[m]),
+          int(run.gas_consumption[m] / ed_gas)] for m in range(12)],
+        index=MONTHS)
 
-    # Make output folders
     out_dir = Path(f'results/{run.name}/javascript')
     out_dir.mkdir(parents=True, exist_ok=True)
-
-    # Write all tables into js file
-    tables = {
-        'inputs': df_inputs,
-        'annual_intensities': df_annual_intensities,
-        'annual_thermal_breakdown': df_annual_thermal_breakdown,
-        'monthly_thermal_demand': df_monthly_thermal_demand,
-        'annual_end_use_breakdown': df_annual_end_use_breakdown,
-        'monthly_end_use': df_monthly_end_use,
-        'monthly_gas_electricity': df_monthly_gas_electricity
-    }
-    f = open(out_dir / 'tables.js', 'w')
-    for key, value in tables.items():
-        f.write(f"document.getElementById('{key}').innerHTML = `\n")
-        f.write(value.to_html(justify="center"))
-        f.write("`;\n")
-    f.close()
-
-    # Write metadata into another js file
-    f = open(out_dir / 'metadata.js', 'w')
-    f.write(f"document.getElementById('run_name').innerHTML = '{run.name}'\n")
-    f.write(f"document.getElementById('last_updated').innerHTML = '{run.last_updated}'")
-
-    # Copy the html package included with this package
+    with open(out_dir / 'tables.js', 'w') as f:
+        for key, html in tables.items():
+            f.write(f"document.getElementById('{key}').innerHTML = `\n{html}`;\n")
+    with open(out_dir / 'metadata.js', 'w') as f:
+        f.write(f"document.getElementById('run_name').innerHTML = '{run.name}'\n")
+        f.write(f"document.getElementById('last_updated').innerHTML = '{run.last_updated}'")
     skeleton = pkg_resources.read_text(report_resources, 'skeleton.html')
-    f = open(out_dir.parent / f'{run.name}.html', 'w')
-    f.write(skeleton)
-    f.close()
+    with open(out_dir.parent / f'{run.name}.html', 'w') as f:
+        f.write(skeleton)
 
-    print(df_annual_intensities.to_markdown(tablefmt='grid', stralign='center', numalign='center'))
+    print(tabulate([annual_values], headers=annual_headers, tablefmt='grid',
+                   stralign='center', numalign='center'))
+
+
+def _r_squared(x, y):
+    n = float(len(x))
+    sx, sy = sum(x), sum(y)
+    sxx = sum(a * a for a in x)
+    syy = sum(b * b for b in y)
+    sxy = sum(a * b for a, b in zip(x, y))
+    denom = (n * sxx - sx * sx) * (n * syy - sy * sy)
+    if denom <= 0:
+        return 0.0
+    r = (n * sxy - sx * sy) / denom ** 0.5
+    return r * r
 
 
 def validate(electricity_consumption, gas_consumption, utility_data, silent=False):
-    """
-Compares simulated electricity and gas consumption to measured electricity and gas consumption. Returns prediction
-accuracy metrics: r-squared & mean absolute error.
-
-Measured utility data should be in the form of a CSV located in './input'. The first row should have the labels
-'electricity' and 'gas'. 12 rows should follow for each month. Consumption should be given in kWh.
-    Parameters
-    ----------
-    electricity_consumption : array
-        electricity_consumption attribute of a simulation Run object.
-    gas_consumption : array
-        gas_consumption attribute of a simulation Run object.
-    utility_data : str
-        Filename (including extension) of the utility data. File should be a CSV located in './input'.
-    silent : bool, default False
-        Supress printing of the statistical metrics.
-    Returns
-    -------
-        r2_electricity, r2_gas, mae_electricity, mae_gas
-    """
+    """Compares simulated vs measured monthly consumption (CSV in ./input
+    with 'electricity' and 'gas' columns, 12 rows, kWh).
+    Returns r2_electricity, r2_gas, mae_electricity, mae_gas."""
     p = list(Path('input').glob(utility_data))
-    df = pd.read_csv(p[0], index_col=False, dtype='float')
+    with open(p[0]) as f:
+        rows = list(csv.DictReader(f))
+    elec_meas = [float(r['electricity']) for r in rows]
+    gas_meas = [float(r['gas']) for r in rows]
 
-    r2_electricity = round(stats.linregress(electricity_consumption, df['electricity'])[2]**2, 2)
-    r2_gas = round(stats.linregress(gas_consumption, df['gas'])[2] ** 2, 2)
+    r2_electricity = round(_r_squared(electricity_consumption, elec_meas), 2)
+    r2_gas = round(_r_squared(gas_consumption, gas_meas), 2)
+    mae_electricity = int(sum(abs(a - b) for a, b in zip(electricity_consumption, elec_meas))
+                          / len(elec_meas))
+    mae_gas = int(sum(abs(a - b) for a, b in zip(gas_consumption, gas_meas)) / len(gas_meas))
 
-    mae_electricity = int(np.mean(abs(electricity_consumption - df['electricity'])))
-    mae_gas = int(np.mean(abs(gas_consumption - df['gas'])))
-
-    d = {'Electricity': [r2_electricity, mae_electricity],
-         'Natural Gas': [r2_gas, mae_gas]}
-    df_validation = pd.DataFrame(index=['R-squared', 'MAE'], data=d)
     if not silent:
-        print(df_validation.to_markdown(tablefmt='grid', stralign='center', numalign='center'))
+        print(tabulate([['R-squared', r2_electricity, r2_gas],
+                        ['MAE', mae_electricity, mae_gas]],
+                       headers=['', 'Electricity', 'Natural Gas'], tablefmt='grid'))
     return r2_electricity, r2_gas, mae_electricity, mae_gas

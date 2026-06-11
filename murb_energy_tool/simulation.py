@@ -3,7 +3,7 @@ The ``simulation`` module contains the main classes needed to run a simulation.
 """
 
 
-import numpy as np
+from murb_energy_tool.vec import Vec
 from murb_energy_tool import heatbalance, models, solargains, utilities, static
 from datetime import datetime
 
@@ -33,6 +33,7 @@ class Run:
                  u_roof=0.164,
                  test_leakage=2,
                  isd_file=None,
+                 epw_path=None,
                  silent=False,
                  **kwargs):
         """
@@ -106,26 +107,24 @@ class Run:
                           'mass_level': 'medium'}  # Thermal mass
         kwargs = {**default_kwargs, **kwargs}
 
-        # Reformat EPW (and ISD file, if provided)
-        if isd_file is None:  # If no ISD file provided,
-            epw, epw_metadata = utilities.process_weather_data(silent=silent)
-            weather_data_monthly = utilities.get_degree_hours_from_weather_data(epw, setpoint_htg, setpoint_clg)
-            self.name = f'{name}_TMY'
-        else:  # If ISD file is provided
-            epw, epw_metadata, isd_file = utilities.process_weather_data(silent=silent, isd_file=isd_file)
-            weather_data_monthly = utilities.get_degree_hours_from_weather_data(isd_file, setpoint_htg, setpoint_clg)
-            self.name = f'{name}_ISD'
+        if isd_file is not None:
+            raise NotImplementedError(
+                'ISD support was removed in the pure-Python port; use a TMY EPW.')
+        epw, epw_metadata = utilities.process_weather_data(silent=silent, epw_path=epw_path)
+        weather_data_monthly = utilities.get_degree_hours_from_weather_data(
+            epw, setpoint_htg, setpoint_clg)
+        self.name = f'{name}_TMY'
 
         # Resample the EPW or ISD file to get monthly degree hours and heating/cooling period hours
-        hours = weather_data_monthly.hours.values
-        htg_hours = weather_data_monthly.htg_hours.values
-        clg_hours = weather_data_monthly.clg_hours.values
-        htg_degree_hrs = weather_data_monthly.htg_degree_hrs.values
-        clg_degree_hrs = weather_data_monthly.clg_degree_hrs.values
-        htg_degree_hrs_ground = weather_data_monthly.htg_degree_hrs_ground.values
-        clg_degree_hrs_ground = weather_data_monthly.clg_degree_hrs_ground.values
-        htg_degree_hrs_w_clg_setpoint = weather_data_monthly.htg_degree_hrs_w_clg_setpoint.values
-        htg_degree_hrs_w_clg_setpoint_ground = weather_data_monthly.htg_degree_hrs_w_clg_setpoint_ground.values
+        hours = weather_data_monthly.hours
+        htg_hours = weather_data_monthly.htg_hours
+        clg_hours = weather_data_monthly.clg_hours
+        htg_degree_hrs = weather_data_monthly.htg_degree_hrs
+        clg_degree_hrs = weather_data_monthly.clg_degree_hrs
+        htg_degree_hrs_ground = weather_data_monthly.htg_degree_hrs_ground
+        clg_degree_hrs_ground = weather_data_monthly.clg_degree_hrs_ground
+        htg_degree_hrs_w_clg_setpoint = weather_data_monthly.htg_degree_hrs_w_clg_setpoint
+        htg_degree_hrs_w_clg_setpoint_ground = weather_data_monthly.htg_degree_hrs_w_clg_setpoint_ground
 
         # Check validity of window groups
         if type(window_groups) != list:
@@ -218,7 +217,7 @@ class Run:
 
         # Calculate the monthly gas/electricity energy use
         self.electricity_consumption = self.cooling_consumption + self.plug_loads_consumption + self.lighting_consumption
-        self.gas_consumption = np.zeros(np.shape(hours))
+        self.gas_consumption = Vec.zeros(len(hours))
         if cop_htg < .99:
             self.gas_consumption = self.gas_consumption + self.heating_consumption
         else:
